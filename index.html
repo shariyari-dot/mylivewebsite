@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login and Data Entry</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .container {
+      background: #fff;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      position: relative;
+    }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button {
+      padding: 10px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #218838;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background-color: #28a745;
+      color: white;
+    }
+    .hidden {
+      display: none;
+    }
+    .show-password {
+      margin-top: 10px;
+      text-align: left;
+    }
+    .summary {
+      margin-top: 20px;
+      text-align: left;
+    }
+    .expired {
+      background-color: #ffcccc;
+    }
+    .notification {
+      color: red;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    .logout-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: #dc3545;
+    }
+    .logout-btn:hover {
+      background-color: #c82333;
+    }
+  </style>
+</head>
+<body>
+  <!-- Login Page -->
+  <div id="loginPage" class="container">
+    <h2>Login</h2>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <div class="show-password">
+      <input type="checkbox" id="showPassword" onclick="togglePassword()">
+      <label for="showPassword">Show Password</label>
+    </div>
+    <button onclick="login()">Login</button>
+  </div>
+
+  <!-- Data Entry Page -->
+  <div id="dataEntryPage" class="container hidden">
+    <button class="logout-btn" onclick="logout()">Logout</button>
+    <h2>Data Entry</h2>
+    <input type="text" id="name" placeholder="Enter Name">
+    <button onclick="addData()">Add Data</button>
+
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Entry Time</th>
+          <th>Time +1 Hour</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div id="notification" class="notification hidden">Time has passed for some entries!</div>
+  </div>
+
+  <!-- Admin Page -->
+  <div id="adminPage" class="container hidden">
+    <button class="logout-btn" onclick="logout()">Logout</button>
+    <h2>Admin Panel</h2>
+    <input type="text" id="newUsername" placeholder="New Username">
+    <input type="password" id="newPassword" placeholder="New Password">
+    <button onclick="createUser()">Create User</button>
+    <div class="summary">
+      <h3>Summary</h3>
+      <p>Total Names: <span id="totalNames">0</span></p>
+      <p>Names After 9 PM: <span id="namesAfter9PM">0</span></p>
+    </div>
+  </div>
+
+  <!-- Firebase SDK and Configuration -->
+  <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js"></script>
+  <script>
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyB_UIDNLUnAiWRwi7LSFjlQ3d4wfEEIUBw",
+      authDomain: "mylivewebsite-f55af.firebaseapp.com",
+      projectId: "mylivewebsite-f55af",
+      storageBucket: "mylivewebsite-f55af.firebasestorage.app",
+      messagingSenderId: "654399879015",
+      appId: "1:654399879015:web:25e570765bc15395a5e1c2",
+      measurementId: "G-6GWHNYG81D"
+    };
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+
+    let currentUser = null;
+
+    // Login Function
+    function login() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      auth.signInWithEmailAndPassword(username, password)
+        .then((userCredential) => {
+          const user = userCredential.user;
+          if (user.email === 'admin@example.com') { // Replace with your admin email
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('adminPage').classList.remove('hidden');
+          } else {
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('dataEntryPage').classList.remove('hidden');
+          }
+        })
+        .catch((error) => {
+          alert('Invalid credentials');
+        });
+    }
+
+    // Add Data Function
+    function addData() {
+      const name = document.getElementById('name').value;
+      if (!name) return alert('Enter a name');
+
+      const now = new Date();
+      const entryTime = formatTime(now);
+      const expirationTime = new Date(now.getTime() + 3600000); // 1 hour later
+
+      db.collection('entries').add({
+        name,
+        entryTime,
+        expirationTime: firebase.firestore.Timestamp.fromDate(expirationTime),
+        status: 'Active'
+      }).then(() => {
+        alert('Data added');
+        document.getElementById('name').value = ''; // Clear input field
+      }).catch((error) => {
+        alert('Error adding data: ' + error.message);
+      });
+    }
+
+    // Real-Time Updates
+    db.collection('entries').onSnapshot((snapshot) => {
+      const dataEntries = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        dataEntries.push({
+          id: doc.id,
+          name: data.name,
+          entryTime: data.entryTime,
+          expirationTime: data.expirationTime.toDate(),
+          status: data.status
+        });
+      });
+      renderTable(dataEntries); // Update the table with new data
+    });
+
+    // Render Table Function
+    function renderTable(dataEntries) {
+      const tableBody = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
+      tableBody.innerHTML = ''; // Clear the table
+
+      dataEntries.forEach((entry) => {
+        const newRow = tableBody.insertRow();
+        newRow.innerHTML = `
+          <td>${entry.name}</td>
+          <td>${entry.entryTime}</td>
+          <td>${formatTime(entry.expirationTime)}</td>
+          <td>${entry.status}</td>
+        `;
+      });
+    }
+
+    // Logout Function
+    function logout() {
+      auth.signOut().then(() => {
+        currentUser = null;
+        document.getElementById('adminPage').classList.add('hidden');
+        document.getElementById('dataEntryPage').classList.add('hidden');
+        document.getElementById('loginPage').classList.remove('hidden');
+      });
+    }
+
+    // Show/Hide Password Function
+    function togglePassword() {
+      const passwordField = document.getElementById('password');
+      passwordField.type = passwordField.type === 'password' ? 'text' : 'password';
+    }
+
+    // Format Time Function
+    function formatTime(date) {
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+      return `${hours}:${minutes}:${seconds}`;
+    }
+  </script>
+</body>
+</html>
